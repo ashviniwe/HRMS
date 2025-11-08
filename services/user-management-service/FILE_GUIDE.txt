@@ -1,0 +1,98 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                     USER MANAGEMENT SERVICE - FILE GUIDE                   ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📌 PROJECT DOCUMENTATION (Start Here!)
+├── README.md                    → Full documentation & features
+├── QUICKSTART.md               → Fast getting-started guide (5 min read)
+├── PROJECT_SUMMARY.md          → This project overview
+├── CHANGES.md                  → What was changed & why
+├── CLEANUP_CHECKLIST.md        → Verification checklist
+└── FILE_GUIDE.txt             → You are here!
+
+🔧 CONFIGURATION FILES
+├── pyproject.toml              → Project metadata & dependencies
+├── .env.development            → Development configuration (EDIT THIS!)
+├── .env.testing                → Testing configuration
+├── .python-version             → Python version specification
+└── .gitignore                  → Git ignore rules
+
+🚀 APPLICATION CODE
+app/
+├── main.py                     → FastAPI app entry point
+│                               → Sets up CORS, lifespan, routes
+│
+├── api/                        → API routes
+│   ├── __init__.py            → Module exports
+│   ├── users.py               → ✨ User CRUD endpoints (MAIN FILE)
+│   ├── auth.py                → Authentication endpoints
+│   └── dependencies.py        → Shared dependencies
+│
+├── core/                       → Core services
+│   ├── __init__.py            → Module exports
+│   ├── config.py              → Settings & environment variables
+│   ├── database.py            → MySQL connection & session management
+│   ├── logging.py             → Logging configuration
+│   └── security.py            → JWT/JWKS authentication
+│
+└── models/                     → Data models
+    ├── __init__.py            → Module exports
+    └── users.py               → ✨ User model & schemas (IMPORTANT)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 KEY FILES TO UNDERSTAND
+
+1. app/models/users.py
+   - Defines User database model
+   - Defines UserCreate, UserUpdate, UserPublic schemas
+   - Where to add new user fields
+   
+2. app/api/users.py
+   - User CRUD operations
+   - Create, Read, Update, Delete endpoints
+   - Validation logic for duplicate username/email
+   
+3. app/core/config.py
+   - All settings come from here
+   - Reads from .env.development
+   - Where to adjust database, CORS, JWT settings
+   
+4. app/main.py
+   - FastAPI app setup
+   - Routes registration
+   - Startup/shutdown logic
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 QUICK REFERENCE
+
+To start development:
+  1. Edit .env.development with your database details
+  2. Run: uv sync
+  3. Run: uv run uvicorn app.main:app --reload
+  4. Visit: http://localhost:8000/docs
+
+To add a new field to users:
+  1. Edit app/models/users.py (add to User class)
+  2. Add to UserBase, UserCreate, UserUpdate, UserPublic schemas
+  3. Create migration or restart (tables auto-created on startup)
+
+To protect an endpoint:
+  1. Import require_role or require_permission from app.core.security
+  2. Add to endpoint dependencies
+  3. See app/api/auth.py for examples
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ ALL FILES ARE READY TO USE - NO MORE ERRORS!
+
+Dependencies renamed:          ✅ deps → dependencies
+Environment file:             ✅ .env → .env.development
+Template references:          ✅ Removed
+Employee references:          ✅ Converted to User
+Import paths:                 ✅ Fixed
+Type hints:                   ✅ Corrected
+Documentation:                ✅ Complete
+
+═══════════════════════════════════════════════════════════════════════════════

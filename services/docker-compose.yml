@@ -1,0 +1,357 @@
+services:
+  # ============================
+  # Database Layer
+  # ============================
+
+  mysql:
+    image: mysql:8.0
+    container_name: hrms_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_USER: hrms_user
+      MYSQL_PASSWORD: hrms_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 60s
+    networks:
+      - hrms_network
+    restart: unless-stopped
+
+  # ============================
+  # Core Services
+  # ============================
+
+  # Employee Management Service
+  employee-service:
+    build:
+      context: ./employee-management-service
+      dockerfile: Dockerfile
+    container_name: hrms_employee_service
+    ports:
+      - "8001:8000"
+    environment:
+      APP_NAME: Employee Management Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hrms_employees_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006"
+      AUDIT_SERVICE_URL: http://audit-service:8000/api/v1
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000/api/v1
+      COMPLIANCE_SERVICE_URL: http://compliance-service:8000/api/v1
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Leave Management Service
+  leave-service:
+    build:
+      context: ./leave-management-service
+      dockerfile: Dockerfile
+    container_name: hrms_leave_service
+    ports:
+      - "8002:8000"
+    environment:
+      APP_NAME: Leave Management Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hrms_leaves_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006"
+      EMPLOYEE_SERVICE_URL: http://employee-service:8000/api/v1
+      AUDIT_SERVICE_URL: http://audit-service:8000/api/v1
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000/api/v1
+      COMPLIANCE_SERVICE_URL: http://compliance-service:8000/api/v1
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+      employee-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      compliance-service:
+        condition: service_started
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Attendance Management Service
+  attendance-service:
+    build:
+      context: ./attendance-management-service
+      dockerfile: Dockerfile
+    container_name: hrms_attendance_service
+    ports:
+      - "8003:8000"
+    environment:
+      APP_NAME: Attendance Management Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hrms_attendance_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006"
+      EMPLOYEE_SERVICE_URL: http://employee-service:8000/api/v1
+      LEAVE_SERVICE_URL: http://leave-service:8000/api/v1
+      AUDIT_SERVICE_URL: http://audit-service:8000/api/v1
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000/api/v1
+      COMPLIANCE_SERVICE_URL: http://compliance-service:8000/api/v1
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+      employee-service:
+        condition: service_started
+      leave-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      compliance-service:
+        condition: service_started
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: hrms_notification_service
+    ports:
+      - "8004:8000"
+    environment:
+      APP_NAME: Notification Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hrms_notifications_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006"
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-your-email@gmail.com}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-your-app-password}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-hrms@company.com}
+      SMTP_FROM_NAME: "HRMS System"
+      SMTP_USE_TLS: "True"
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Audit Service
+  audit-service:
+    build:
+      context: ./audit-service
+      dockerfile: Dockerfile
+    container_name: hrms_audit_service
+    ports:
+      - "8005:8000"
+    environment:
+      APP_NAME: Audit Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: audit_service_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006"
+      RETENTION_DAYS: 365
+      MAX_BATCH_SIZE: 1000
+      ENABLE_ENCRYPTION: "False"
+      LOG_SENSITIVE_DATA: "False"
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # Compliance Service
+  compliance-service:
+    build:
+      context: ./compliance-service
+      dockerfile: Dockerfile
+    container_name: hrms_compliance_service
+    ports:
+      - "8006:8000"
+    environment:
+      APP_NAME: Compliance Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hrms_compliance_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006"
+      AUDIT_SERVICE_URL: http://audit-service:8000/api/v1
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000/api/v1
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+      audit-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # User Management Service
+  user-service:
+    build:
+      context: ./user-management-service
+      dockerfile: Dockerfile
+    container_name: hrms_user_service
+    ports:
+      - "8007:8000"
+    environment:
+      APP_NAME: User Management Service
+      APP_VERSION: 1.0.0
+      DEBUG: "False"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: hrms_users_db
+      DB_USER: hrms_user
+      DB_PASSWORD: hrms_password
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005,http://localhost:8006,http://localhost:8007"
+      AUDIT_SERVICE_URL: http://audit-service:8000/api/v1
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      JWKS_URL: https://api.asgardeo.io/t/pookieland/oauth2/jwks
+    depends_on:
+      mysql:
+        condition: service_healthy
+      audit-service:
+        condition: service_started
+    networks:
+      - hrms_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ============================
+  # Frontend Layer
+  # ============================
+
+  frontend:
+    build:
+      context: ./hrms_frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_CLIENT_ID: ${VITE_CLIENT_ID:-}
+        VITE_ORG_BASE_URL: ${VITE_ORG_BASE_URL:-}
+    container_name: hrms_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8001
+      REACT_APP_EMPLOYEE_SERVICE: http://localhost:8001/api/v1
+      REACT_APP_LEAVE_SERVICE: http://localhost:8002/api/v1
+      REACT_APP_ATTENDANCE_SERVICE: http://localhost:8003/api/v1
+      REACT_APP_NOTIFICATION_SERVICE: http://localhost:8004/api/v1
+      REACT_APP_AUDIT_SERVICE: http://localhost:8005/api/v1
+      REACT_APP_COMPLIANCE_SERVICE: http://localhost:8006/api/v1
+      REACT_APP_USER_SERVICE: http://localhost:8007/api/v1
+    depends_on:
+      employee-service:
+        condition: service_started
+      leave-service:
+        condition: service_started
+      attendance-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
+      compliance-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+    networks:
+      - hrms_network
+    restart: unless-stopped
+
+networks:
+  hrms_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
