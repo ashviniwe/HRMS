@@ -1,0 +1,20 @@
+---
+- name: Join worker nodes to cluster
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Check if node is already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: node_joined
+
+    - name: Copy join command to workers
+      copy:
+        src: /tmp/kubeadm_join_command.sh
+        dest: /tmp/kubeadm_join_command.sh
+        mode: '0755'
+      when: not node_joined.stat.exists
+
+    - name: Join cluster
+      shell: /tmp/kubeadm_join_command.sh
+      when: not node_joined.stat.exists

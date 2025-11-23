@@ -1,0 +1,153 @@
+name: Setup Kubernetes Cluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - setup-cluster
+          - deploy-hrms
+          - update-hrms
+          - destroy-cluster
+
+env:
+  AWS_REGION: ap-south-1
+
+jobs:
+  setup-cluster:
+    name: Setup Kubernetes Cluster
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'setup-cluster'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible boto3 botocore
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.MASTER_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.WORKER1_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.WORKER2_IP }} >> ~/.ssh/known_hosts
+
+      - name: Create Ansible Inventory
+        run: |
+          cat > inventory.ini <<EOF
+          [masters]
+          master ansible_host=${{ secrets.MASTER_IP }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+          [workers]
+          worker1 ansible_host=${{ secrets.WORKER1_IP }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+          worker2 ansible_host=${{ secrets.WORKER2_IP }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+          [k8s:children]
+          masters
+          workers
+
+          [k8s:vars]
+          ansible_python_interpreter=/usr/bin/python3
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+
+      - name: Test Connectivity
+        run: |
+          ansible all -i inventory.ini -m ping
+
+      - name: Prepare All Nodes
+        run: |
+          ansible-playbook -i inventory.ini ansible/playbooks/01-prepare-nodes.yml
+
+      - name: Setup Master Node
+        run: |
+          ansible-playbook -i inventory.ini ansible/playbooks/02-setup-master.yml
+
+      - name: Setup Worker Nodes
+        run: |
+          ansible-playbook -i inventory.ini ansible/playbooks/03-setup-workers.yml
+
+      - name: Configure ECR Access
+        run: |
+          ansible-playbook -i inventory.ini ansible/playbooks/05-configure-ecr-access.yml \
+            -e "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            -e "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+
+  deploy-hrms:
+    name: Deploy HRMS Application
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'deploy-hrms'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible boto3 botocore
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.MASTER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Create Ansible Inventory
+        run: |
+          cat > inventory.ini <<EOF
+          [masters]
+          master ansible_host=${{ secrets.MASTER_IP }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+          [masters:vars]
+          ansible_python_interpreter=/usr/bin/python3
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+
+      - name: Deploy HRMS
+        run: |
+          ansible-playbook -i inventory.ini ansible/playbooks/04-deploy-hrms.yml
+
+  update-hrms:
+    name: Update HRMS Application
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'update-hrms'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.MASTER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Restart All Deployments
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.MASTER_IP }} << 'EOF'
+            kubectl rollout restart deployment -n hrms
+            kubectl rollout status deployment -n hrms --timeout=5m
+          EOF

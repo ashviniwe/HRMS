@@ -1,0 +1,48 @@
+---
+- name: Configure ECR Access on K8s Nodes
+  hosts: k8s
+  become: yes
+  vars:
+    aws_region: ap-south-1
+    aws_account_id: 475936984863
+  tasks:
+    - name: Install AWS CLI
+      apt:
+        name: awscli
+        state: present
+        update_cache: yes
+
+    - name: Create AWS credentials directory
+      file:
+        path: /root/.aws
+        state: directory
+        mode: '0700'
+
+    - name: Configure AWS credentials
+      copy:
+        content: |
+          [default]
+          aws_access_key_id = {{ AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key = {{ AWS_SECRET_ACCESS_KEY }}
+        dest: /root/.aws/credentials
+        mode: '0600'
+
+    - name: Configure AWS region
+      copy:
+        content: |
+          [default]
+          region = {{ aws_region }}
+          output = json
+        dest: /root/.aws/config
+        mode: '0600'
+
+    - name: Login to ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com
+
+    - name: Create ECR login cron job
+      cron:
+        name: "ECR Docker Login"
+        minute: "0"
+        hour: "*/6"
+        job: "aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"

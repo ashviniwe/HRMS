@@ -1,0 +1,49 @@
+---
+- name: Deploy HRMS Application to Kubernetes
+  hosts: masters
+  become_user: ubuntu
+  tasks:
+    - name: Create k8s-manifests directory
+      file:
+        path: /home/ubuntu/k8s-manifests
+        state: directory
+
+    - name: Copy Kubernetes manifests
+      synchronize:
+        src: "{{ playbook_dir }}/../../k8s-manifests/"
+        dest: /home/ubuntu/k8s-manifests/
+        recursive: yes
+
+    - name: Create hrms namespace
+      shell: kubectl apply -f /home/ubuntu/k8s-manifests/namespace.yaml
+
+    - name: Deploy MySQL
+      shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/
+
+    - name: Wait for MySQL to be ready
+      shell: kubectl wait --for=condition=ready pod -l app=mysql -n hrms --timeout=300s
+      register: mysql_ready
+      retries: 3
+      delay: 10
+      until: mysql_ready.rc == 0
+
+    - name: Deploy backend services
+      shell: kubectl apply -f /home/ubuntu/k8s-manifests/services/
+
+    - name: Wait for services to be ready
+      shell: kubectl wait --for=condition=ready pod -l tier=backend -n hrms --timeout=600s
+      register: services_ready
+      retries: 3
+      delay: 10
+      until: services_ready.rc == 0
+
+    - name: Deploy frontend
+      shell: kubectl apply -f /home/ubuntu/k8s-manifests/frontend/
+
+    - name: Get all pods status
+      shell: kubectl get pods -n hrms
+      register: pods_status
+
+    - name: Display pods status
+      debug:
+        var: pods_status.stdout_lines
