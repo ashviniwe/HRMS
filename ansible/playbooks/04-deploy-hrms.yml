@@ -2,6 +2,8 @@
 - name: Deploy HRMS Application to Kubernetes
   hosts: masters
   become_user: ubuntu
+  vars:
+    ansible_ssh_common_args: '-o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes'
   tasks:
     - name: Create k8s-manifests directory
       file:
@@ -17,33 +19,93 @@
     - name: Create hrms namespace
       shell: kubectl apply -f /home/ubuntu/k8s-manifests/namespace.yaml
 
-    - name: Deploy MySQL
-      shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/
+    - name: Deploy MySQL ConfigMap
+      shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/configmap.yaml
+      ignore_errors: yes
 
-    - name: Wait for MySQL to be ready
-      shell: kubectl wait --for=condition=ready pod -l app=mysql -n hrms --timeout=300s
+    - name: Deploy MySQL StatefulSet
+      shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/statefulset.yaml
+
+    - name: Wait for MySQL pod to exist
+      shell: kubectl get pod -l app=mysql -n hrms --no-headers | wc -l
+      register: mysql_pod_exists
+      until: mysql_pod_exists.stdout|int > 0
+      retries: 12
+      delay: 5
+
+    - name: Wait for MySQL to be ready (60 second intervals)
+      shell: kubectl wait --for=condition=ready pod -l app=mysql -n hrms --timeout=60s
       register: mysql_ready
-      retries: 3
+      retries: 5
       delay: 10
       until: mysql_ready.rc == 0
+      ignore_errors: yes
 
-    - name: Deploy backend services
+    - name: Check MySQL pod status
+      shell: kubectl get pods -l app=mysql -n hrms
+      register: mysql_status
+
+    - name: Display MySQL status
+      debug:
+        var: mysql_status.stdout_lines
+
+    - name: Deploy all backend services
       shell: kubectl apply -f /home/ubuntu/k8s-manifests/services/
+      register: backend_deploy
 
-    - name: Wait for services to be ready
-      shell: kubectl wait --for=condition=ready pod -l tier=backend -n hrms --timeout=600s
-      register: services_ready
-      retries: 3
-      delay: 10
-      until: services_ready.rc == 0
+    - name: Display backend deployment result
+      debug:
+        var: backend_deploy.stdout_lines
+
+    - name: Wait a bit for backend pods to initialize
+      pause:
+        seconds: 30
+
+    - name: Check backend services status
+      shell: kubectl get pods -n hrms -l tier=backend
+      register: backend_status
+
+    - name: Display backend status
+      debug:
+        var: backend_status.stdout_lines
 
     - name: Deploy frontend
       shell: kubectl apply -f /home/ubuntu/k8s-manifests/frontend/
 
-    - name: Get all pods status
-      shell: kubectl get pods -n hrms
-      register: pods_status
+    - name: Wait for frontend pods
+      pause:
+        seconds: 20
 
-    - name: Display pods status
+    - name: Get all pods status
+      shell: kubectl get pods -n hrms -o wide
+      register: all_pods
+
+    - name: Display all pods
       debug:
-        var: pods_status.stdout_lines
+        var: all_pods.stdout_lines
+
+    - name: Get all services
+      shell: kubectl get svc -n hrms
+      register: all_services
+
+    - name: Display all services
+      debug:
+        var: all_services.stdout_lines
+
+    - name: Check for any failing pods
+      shell: kubectl get pods -n hrms --field-selector=status.phase!=Running,status.phase!=Succeeded
+      register: failing_pods
+      ignore_errors: yes
+
+    - name: Display failing pods if any
+      debug:
+        var: failing_pods.stdout_lines
+      when: failing_pods.stdout != ""
+
+    - name: Final deployment summary
+      debug:
+        msg: |
+          Deployment completed!
+          Check pod status: kubectl get pods -n hrms
+          Check services: kubectl get svc -n hrms
+          View logs: kubectl logs -n hrms <pod-name>
