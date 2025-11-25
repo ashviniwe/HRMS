@@ -2,229 +2,40 @@ name: Build and Push All Services to ECR
 
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'services/**'
+    branches: [main]
+    paths: ['services/**']
   workflow_dispatch:
 
-env:
-  AWS_REGION: ap-south-1
-  ECR_REGISTRY: 475936984863.dkr.ecr.ap-south-1.amazonaws.com
-
 jobs:
-  build-employee-service:
-    name: Build Employee Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  build-and-push:
+    strategy:
+      matrix:
+        include:
+          - servicePath: services/employee-management-service
+            imageName: hrms/employee-service
+          - servicePath: services/leave-management-service
+            imageName: hrms/leave-service
+          - servicePath: services/attendance-management-service
+            imageName: hrms/attendance-service
+          - servicePath: services/notification-service
+            imageName: hrms/notification-service
+          - servicePath: services/audit-service
+            imageName: hrms/audit-service
+          - servicePath: services/compliance-service
+            imageName: hrms/compliance-service
+          - servicePath: services/user-management-service
+            imageName: hrms/user-service
+          - servicePath: services/hrms_frontend
+            imageName: hrms/frontend
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+    uses: ./.github/workflows/reusable-build-push.yml
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+    with:
+      servicePath: ${{ matrix.servicePath }}
+      imageName: ${{ matrix.imageName }}
+      registry: 475936984863.dkr.ecr.ap-south-1.amazonaws.com
+      region: ap-south-1
 
-      - name: Build, tag, and push image
-        working-directory: ./services/employee-management-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/employee-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/employee-service:$IMAGE_TAG $ECR_REGISTRY/hrms/employee-service:latest
-          docker push $ECR_REGISTRY/hrms/employee-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/employee-service:latest
-
-  build-leave-service:
-    name: Build Leave Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/leave-management-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/leave-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/leave-service:$IMAGE_TAG $ECR_REGISTRY/hrms/leave-service:latest
-          docker push $ECR_REGISTRY/hrms/leave-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/leave-service:latest
-
-  build-attendance-service:
-    name: Build Attendance Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/attendance-management-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/attendance-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/attendance-service:$IMAGE_TAG $ECR_REGISTRY/hrms/attendance-service:latest
-          docker push $ECR_REGISTRY/hrms/attendance-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/attendance-service:latest
-
-  build-notification-service:
-    name: Build Notification Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/notification-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/notification-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/notification-service:$IMAGE_TAG $ECR_REGISTRY/hrms/notification-service:latest
-          docker push $ECR_REGISTRY/hrms/notification-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/notification-service:latest
-
-  build-audit-service:
-    name: Build Audit Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/audit-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/audit-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/audit-service:$IMAGE_TAG $ECR_REGISTRY/hrms/audit-service:latest
-          docker push $ECR_REGISTRY/hrms/audit-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/audit-service:latest
-
-  build-compliance-service:
-    name: Build Compliance Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/compliance-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/compliance-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/compliance-service:$IMAGE_TAG $ECR_REGISTRY/hrms/compliance-service:latest
-          docker push $ECR_REGISTRY/hrms/compliance-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/compliance-service:latest
-
-  build-user-service:
-    name: Build User Service
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/user-management-service
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/user-service:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/user-service:$IMAGE_TAG $ECR_REGISTRY/hrms/user-service:latest
-          docker push $ECR_REGISTRY/hrms/user-service:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/user-service:latest
-
-  build-frontend:
-    name: Build Frontend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push image
-        working-directory: ./services/hrms_frontend
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker build -t $ECR_REGISTRY/hrms/frontend:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/hrms/frontend:$IMAGE_TAG $ECR_REGISTRY/hrms/frontend:latest
-          docker push $ECR_REGISTRY/hrms/frontend:$IMAGE_TAG
-          docker push $ECR_REGISTRY/hrms/frontend:latest
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
