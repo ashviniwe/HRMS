@@ -4,7 +4,7 @@ Handles all CRUD operations for leave requests and status management.
 """
 
 from typing import Annotated
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from datetime import datetime, timezone
 from sqlmodel import select
 
@@ -13,6 +13,7 @@ from app.models.leave import Leave, LeaveStatus
 from app.schemas.leave import LeaveCreate, LeavePublic, LeaveStatusUpdate
 from app.core.logging import get_logger
 from app.services.employee_service import verify_employee_exists
+from app.services.leave_events import publish_leave_event
 
 logger = get_logger(__name__)
 
@@ -24,8 +25,13 @@ router = APIRouter(
 )
 
 
+
 @router.post("/", response_model=LeavePublic, status_code=201)
-def create_leave(leave: LeaveCreate, session: SessionDep) -> Leave:
+async def create_leave(
+    leave: LeaveCreate, 
+    session: SessionDep,
+    background_tasks: BackgroundTasks
+) -> Leave:
     """
     Create a new leave request.
 
@@ -36,6 +42,7 @@ def create_leave(leave: LeaveCreate, session: SessionDep) -> Leave:
     Args:
         leave: Leave data from request body
         session: Database session (injected)
+        background_tasks: Background tasks for async operations
 
     Returns:
         Created leave request with generated ID
@@ -66,7 +73,22 @@ def create_leave(leave: LeaveCreate, session: SessionDep) -> Leave:
     session.commit()
     session.refresh(db_leave)
     logger.info(f"Leave created successfully with ID: {db_leave.id}")
+    
+    # Publish leave created event (async, non-blocking)
+    background_tasks.add_task(
+        publish_leave_event,
+        "created",
+        db_leave.id,
+        db_leave.employee_id,
+        db_leave.leave_type,
+        db_leave.start_date,
+        db_leave.end_date,
+        db_leave.status.value,
+        db_leave.reason
+    )
+    
     return db_leave
+
 
 
 @router.get("/", response_model=list[LeavePublic])
@@ -182,10 +204,11 @@ def get_employee_leaves(
 
 
 @router.put("/{leave_id}", response_model=LeavePublic)
-def update_leave_status(
+async def update_leave_status(
     leave_id: int,
     status_update: LeaveStatusUpdate,
     session: SessionDep,
+    background_tasks: BackgroundTasks
 ) -> Leave:
     """
     Update the status of a leave request.
@@ -198,6 +221,7 @@ def update_leave_status(
         leave_id: The ID of the leave to update
         status_update: New status and related information
         session: Database session (injected)
+        background_tasks: Background tasks for async operations
 
     Returns:
         Updated leave request
@@ -255,11 +279,37 @@ def update_leave_status(
     session.commit()
     session.refresh(leave)
     logger.info(f"Leave {leave_id} status updated to {status_update.status.value}")
+    
+    # Publish leave status event (async, non-blocking)
+    event_type_str = "approved" if status_update.status == LeaveStatus.APPROVED else \
+                     "rejected" if status_update.status == LeaveStatus.REJECTED else \
+                     "cancelled" if status_update.status == LeaveStatus.CANCELLED else None
+    
+    if event_type_str:
+        background_tasks.add_task(
+            publish_leave_event,
+            event_type_str,
+            leave.id,
+            leave.employee_id,
+            leave.leave_type,
+            leave.start_date,
+            leave.end_date,
+            leave.status.value,
+            leave.reason,
+            leave.approved_by,
+            leave.rejection_reason
+        )
+    
     return leave
 
 
+
 @router.delete("/{leave_id}")
-def cancel_leave(leave_id: int, session: SessionDep) -> dict[str, bool]:
+async def cancel_leave(
+    leave_id: int, 
+    session: SessionDep,
+    background_tasks: BackgroundTasks
+) -> dict[str, bool]:
     """
     Cancel a leave request.
 
@@ -269,6 +319,7 @@ def cancel_leave(leave_id: int, session: SessionDep) -> dict[str, bool]:
     Args:
         leave_id: The ID of the leave to cancel
         session: Database session (injected)
+        background_tasks: Background tasks for async operations
 
     Returns:
         Success confirmation
@@ -283,18 +334,35 @@ def cancel_leave(leave_id: int, session: SessionDep) -> dict[str, bool]:
         logger.warning(f"Leave with ID {leave_id} not found for cancellation")
         raise HTTPException(status_code=404, detail="Leave not found")
 
-    # Check if leave can be cancelled
-    if leave.status in [LeaveStatus.CANCELLED, LeaveStatus.REJECTED]:
-        logger.warning(f"Cannot cancel leave with status {leave.status.value}")
+    # Only allow cancellation of pending or approved leaves
+    if leave.status not in [LeaveStatus.PENDING, LeaveStatus.APPROVED]:
+        logger.warning(
+            f"Cannot cancel leave {leave_id} with status {leave.status.value}"
+        )
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot cancel a leave with status {leave.status.value}",
+            detail=f"Cannot cancel leave with status {leave.status.value}",
         )
 
     leave.status = LeaveStatus.CANCELLED
     leave.updated_at = datetime.now(timezone.utc)
-
     session.add(leave)
     session.commit()
     logger.info(f"Leave with ID {leave_id} cancelled successfully")
+    
+    # Publish leave cancelled event (async, non-blocking)
+    background_tasks.add_task(
+        publish_leave_event,
+        "cancelled",
+        leave.id,
+        leave.employee_id,
+        leave.leave_type,
+        leave.start_date,
+        leave.end_date,
+        leave.status.value,
+        leave.reason,
+        leave.approved_by,
+        leave.rejection_reason
+    )
+    
     return {"ok": True}
