@@ -1,0 +1,83 @@
+name: Reusable - Build and Push Service to ECR
+
+on:
+  workflow_call:
+    inputs:
+      servicePath:
+        required: true
+        type: string
+      imageName:
+        required: true
+        type: string
+      registry:
+        required: true
+        type: string
+      region:
+        required: true
+        type: string
+      push_image:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  build-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.region }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (with cache)
+        working-directory: ${{ inputs.servicePath }}
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker buildx build \
+            --cache-from=type=gha \
+            --cache-to=type=gha,mode=max \
+            --tag ${{ inputs.imageName }}:$IMAGE_TAG \
+            --tag ${{ inputs.imageName }}:latest \
+            --load \
+            .
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ inputs.imageName }}:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Tag image for ECR
+        if: inputs.push_image == true
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker tag ${{ inputs.imageName }}:$IMAGE_TAG ${{ inputs.registry }}/${{ inputs.imageName }}:$IMAGE_TAG
+          docker tag ${{ inputs.imageName }}:latest ${{ inputs.registry }}/${{ inputs.imageName }}:latest
+
+      - name: Push image to ECR
+        if: inputs.push_image == true
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          docker push ${{ inputs.registry }}/${{ inputs.imageName }}:$IMAGE_TAG
+          docker push ${{ inputs.registry }}/${{ inputs.imageName }}:latest
