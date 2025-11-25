@@ -1,0 +1,34 @@
+{
+    "employee-service": {
+        "servicePath": "services/employee-management-service",
+        "imageName": "hrms/employee-service"
+    },
+    "leave-service": {
+        "servicePath": "services/leave-management-service",
+        "imageName": "hrms/leave-service"
+    },
+    "attendance-service": {
+        "servicePath": "services/attendance-management-service",
+        "imageName": "hrms/attendance-service"
+    },
+    "notification-service": {
+        "servicePath": "services/notification-service",
+        "imageName": "hrms/notification-service"
+    },
+    "audit-service": {
+        "servicePath": "services/audit-service",
+        "imageName": "hrms/audit-service"
+    },
+    "compliance-service": {
+        "servicePath": "services/compliance-service",
+        "imageName": "hrms/compliance-service"
+    },
+    "user-service": {
+        "servicePath": "services/user-management-service",
+        "imageName": "hrms/user-service"
+    },
+    "frontend": {
+        "servicePath": "services/hrms_frontend",
+        "imageName": "hrms/frontend"
+    }
+}

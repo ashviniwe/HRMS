@@ -41,44 +41,12 @@ jobs:
       - name: Generate matrix
         id: set-matrix
         run: |
-          CHANGES='${{ steps.filter.outputs.changes }}'
-          
-          if [[ "${{ github.event.inputs.build_all }}" == "true" ]]; then
-            echo "Manual trigger: Building ALL services"
-            CHANGES="employee-service leave-service attendance-service notification-service audit-service compliance-service user-service frontend"
-          fi
-          
-          echo "Changed services: $CHANGES"
-          
-          MATRIX_JSON="[]"
-          
-          if [[ "$CHANGES" == *"employee-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/employee-management-service", "imageName": "hrms/employee-service"}]')
-          fi
-          if [[ "$CHANGES" == *"leave-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/leave-management-service", "imageName": "hrms/leave-service"}]')
-          fi
-          if [[ "$CHANGES" == *"attendance-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/attendance-management-service", "imageName": "hrms/attendance-service"}]')
-          fi
-          if [[ "$CHANGES" == *"notification-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/notification-service", "imageName": "hrms/notification-service"}]')
-          fi
-          if [[ "$CHANGES" == *"audit-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/audit-service", "imageName": "hrms/audit-service"}]')
-          fi
-          if [[ "$CHANGES" == *"compliance-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/compliance-service", "imageName": "hrms/compliance-service"}]')
-          fi
-          if [[ "$CHANGES" == *"user-service"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/user-management-service", "imageName": "hrms/user-service"}]')
-          fi
-          if [[ "$CHANGES" == *"frontend"* ]]; then
-            MATRIX_JSON=$(echo $MATRIX_JSON | jq '. + [{"servicePath": "services/hrms_frontend", "imageName": "hrms/frontend"}]')
-          fi
-          
-          echo "Generated matrix: $MATRIX_JSON"
-          echo 'matrix={"include":'"$MATRIX_JSON"'}' >> $GITHUB_OUTPUT
+          jq -c --argjson changes '${{ steps.filter.outputs.changes }}' \
+             --arg build_all "${{ github.event.inputs.build_all }}" \
+             'if $build_all == "true" then to_entries | map(.value) else [ .[$changes[]] ] end' \
+             .github/workflows/service-config.json > matrix.json
+             
+          echo "matrix={\"include\": $(cat matrix.json)}" >> $GITHUB_OUTPUT
 
   build-and-push:
     needs: detect-changes
