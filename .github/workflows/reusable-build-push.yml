@@ -15,6 +15,10 @@ on:
       region:
         required: true
         type: string
+      push_image:
+        required: false
+        type: boolean
+        default: false
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -65,12 +69,14 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Tag image for ECR
+        if: inputs.push_image == true
         run: |
           IMAGE_TAG=${{ github.sha }}
           docker tag ${{ inputs.imageName }}:$IMAGE_TAG ${{ inputs.registry }}/${{ inputs.imageName }}:$IMAGE_TAG
           docker tag ${{ inputs.imageName }}:latest ${{ inputs.registry }}/${{ inputs.imageName }}:latest
 
       - name: Push image to ECR
+        if: inputs.push_image == true
         run: |
           IMAGE_TAG=${{ github.sha }}
           docker push ${{ inputs.registry }}/${{ inputs.imageName }}:$IMAGE_TAG
