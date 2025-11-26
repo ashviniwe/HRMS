@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     ENABLE_ENCRYPTION: bool = False  # Whether to encrypt sensitive data in logs
     LOG_SENSITIVE_DATA: bool = False  # Whether to log potentially sensitive data
 
+    # Kafka Settings (NEW - for async event processing)
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_AUDIT_TOPIC: str = "audit-queue"
+    KAFKA_CONSUMER_GROUP_ID: str = "audit-service-group"
+    KAFKA_BATCH_SIZE: int = 500  # Batch size for audit event processing
+    KAFKA_ENABLE_CONSUMER: bool = True  # Feature flag to enable/disable Kafka consumer
+
     @property
     def database_url(self) -> str:
         """Generate MySQL database URL."""

@@ -17,6 +17,7 @@ from app.api.deps import SessionDep
 from app.core.security import get_current_active_user, TokenData
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.services.compliance_events import publish_compliance_event
 from app.models.data_inventory import DataInventory, DataCategory
 from app.models.employee_data_access import EmployeeDataAccess, DataRetention
 

@@ -26,12 +26,35 @@ async def lifespan(_: FastAPI):
     logger.info("Creating database and tables...")
     create_db_and_tables()
     logger.info("Database and tables created successfully")
+    
+    # Start Kafka consumer (NEW - async event processing)
+    if settings.KAFKA_ENABLE_CONSUMER:
+        try:
+            from app.consumers import start_consumer
+            await start_consumer()
+            logger.info("Kafka consumer started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start Kafka consumer: {e}")
+            logger.warning("Continuing without Kafka consumer - HTTP endpoints still available")
+    else:
+        logger.info("Kafka consumer disabled (KAFKA_ENABLE_CONSUMER=False)")
+    
     logger.info("Notification Service startup complete")
 
     yield
 
     # Shutdown
     logger.info("Notification Service shutting down...")
+    
+    # Stop Kafka consumer
+    if settings.KAFKA_ENABLE_CONSUMER:
+        try:
+            from app.consumers import stop_consumer
+            await stop_consumer()
+            logger.info("Kafka consumer stopped")
+        except Exception as e:
+            logger.error(f"Error stopping Kafka consumer: {e}")
+
 
 
 # Initialize FastAPI application

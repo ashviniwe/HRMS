@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Kafka Settings (NEW - for async event processing)
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_NOTIFICATION_TOPIC: str = "notification-queue"
+    KAFKA_CONSUMER_GROUP_ID: str = "notification-service-group"
+    KAFKA_ENABLE_CONSUMER: bool = True  # Feature flag to enable/disable Kafka consumer
+
+
     @property
     def database_url(self) -> str:
         """Generate MySQL database URL."""

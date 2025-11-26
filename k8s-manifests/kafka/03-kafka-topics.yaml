@@ -1,0 +1,76 @@
+---
+# Notification Queue Topic
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: notification-queue
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: hrms-kafka
+    app: hrms-kafka
+spec:
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 604800000  # 7 days
+    compression.type: lz4
+    min.insync.replicas: 1
+    cleanup.policy: delete
+    segment.bytes: 1073741824  # 1GB
+    segment.ms: 86400000  # 1 day
+---
+# Audit Queue Topic
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: audit-queue
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: hrms-kafka
+    app: hrms-kafka
+spec:
+  partitions: 5
+  replicas: 3
+  config:
+    retention.ms: 2592000000  # 30 days
+    compression.type: lz4
+    min.insync.replicas: 2
+    cleanup.policy: delete
+    segment.bytes: 1073741824  # 1GB
+    segment.ms: 86400000  # 1 day
+---
+# Dead Letter Queue for failed notification processing
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: notification-dlq
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: hrms-kafka
+    app: hrms-kafka
+spec:
+  partitions: 1
+  replicas: 2
+  config:
+    retention.ms: 2592000000  # 30 days
+    compression.type: lz4
+    min.insync.replicas: 1
+    cleanup.policy: delete
+---
+# Dead Letter Queue for failed audit processing
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: audit-dlq
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: hrms-kafka
+    app: hrms-kafka
+spec:
+  partitions: 1
+  replicas: 2
+  config:
+    retention.ms: 2592000000  # 30 days
+    compression.type: lz4
+    min.insync.replicas: 1
+    cleanup.policy: delete

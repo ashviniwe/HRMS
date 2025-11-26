@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+
+    # Kafka Settings
+    KAFKA_ENABLE_PRODUCER: bool = True
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_CLIENT_ID: str = "compliance-service"
+    KAFKA_COMPLIANCE_TOPIC: str = "compliance-queue"
+
     # External Service URLs
     EMPLOYEE_SERVICE_URL: str = "http://localhost:8001"
     USER_MANAGEMENT_SERVICE_URL: str = "http://localhost:8002"

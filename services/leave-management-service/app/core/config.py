@@ -14,8 +14,16 @@ class Settings(BaseSettings):
     """
 
     # Application Settings
+    APP_NAME: str = "Leave Management Service"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+
+    # Kafka Settings (Optional - for async event publishing)
+    KAFKA_ENABLE_PRODUCER: bool = True  # Feature flag for Kafka producer
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_LEAVE_TOPIC: str = "leave-queue"
+    KAFKA_CLIENT_ID: str = "leave-management-service"
+
 
     # Database Settings
     DB_NAME: str = "hrms_db"

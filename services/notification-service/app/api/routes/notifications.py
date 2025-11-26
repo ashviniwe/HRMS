@@ -101,7 +101,7 @@ async def send_email_background(
         session.close()
 
 
-@router.post("/send", response_model=NotificationPublic, status_code=201)
+@router.post("/send", response_model=NotificationPublic, status_code=201, deprecated=True)
 async def send_notification(
     notification: NotificationCreate,
     session: SessionDep,
@@ -109,6 +109,12 @@ async def send_notification(
 ) -> Notification:
     """
     Send a new notification.
+    
+    **DEPRECATED**: This HTTP endpoint is deprecated in favor of Kafka-based async messaging.
+    Services should publish events to the `notification-queue` topic instead.
+    This endpoint will be removed in a future version.
+    
+    For migration guide, see: services/docs/kafka/implementation-checklist.md
 
     Args:
         notification: Notification data from request body
@@ -118,6 +124,10 @@ async def send_notification(
     Returns:
         Created notification with generated ID
     """
+    logger.warning(
+        "DEPRECATED: HTTP /send endpoint called. "
+        "Please migrate to Kafka-based notification events."
+    )
     logger.info(
         f"Creating new notification for employee {notification.employee_id} to {notification.recipient_email}"
     )

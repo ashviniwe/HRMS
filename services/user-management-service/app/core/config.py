@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     SERVICE_RETRY_COUNT: int = 3
     SERVICE_RETRY_DELAY: int = 1  # seconds
 
+    # Kafka Settings (Optional - for async event publishing)
+    KAFKA_ENABLE_PRODUCER: bool = True  # Feature flag for Kafka producer
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_NOTIFICATION_TOPIC: str = "notification-queue"
+    KAFKA_AUDIT_TOPIC: str = "audit-queue"
+    KAFKA_CLIENT_ID: str = "user-management-service"
+
+
     # Role Definitions
     VALID_ROLES: List[str] = ["admin", "hr_manager", "manager", "employee"]
     DEFAULT_ROLE: str = "employee"

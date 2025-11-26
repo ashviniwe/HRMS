@@ -4,12 +4,13 @@ Handles all CRUD operations for employee resources.
 """
 
 from typing import Annotated
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 
 from app.api.deps import SessionDep
 from app.models.employee import Employee
 from app.schemas.employee import EmployeeCreate, EmployeePublic, EmployeeUpdate
 from app.core.logging import get_logger
+from app.services.employee_events import publish_employee_event
 from sqlmodel import select  # type: ignore
 
 logger = get_logger(__name__)
@@ -23,13 +24,18 @@ router = APIRouter(
 
 
 @router.post("/", response_model=EmployeePublic, status_code=201)
-def create_employee(employee: EmployeeCreate, session: SessionDep) -> Employee:
+async def create_employee(
+    employee: EmployeeCreate, 
+    session: SessionDep,
+    background_tasks: BackgroundTasks
+) -> Employee:
     """
     Create a new employee.
 
     Args:
         employee: Employee data from request body
         session: Database session (injected)
+        background_tasks: Background tasks for async operations
 
     Returns:
         Created employee with generated ID
@@ -40,7 +46,18 @@ def create_employee(employee: EmployeeCreate, session: SessionDep) -> Employee:
     session.commit()
     session.refresh(db_employee)
     logger.info(f"Employee created successfully with ID: {db_employee.id}")
+    
+    # Publish employee created event (async, non-blocking)
+    background_tasks.add_task(
+        publish_employee_event,
+        "created",
+        db_employee.id,
+        db_employee.name,
+        db_employee.age
+    )
+    
     return db_employee
+
 
 
 @router.get("/", response_model=list[EmployeePublic])
@@ -91,8 +108,11 @@ def read_employee(employee_id: int, session: SessionDep) -> Employee:
 
 
 @router.patch("/{employee_id}", response_model=EmployeePublic)
-def update_employee(
-    employee_id: int, employee: EmployeeUpdate, session: SessionDep
+async def update_employee(
+    employee_id: int, 
+    employee: EmployeeUpdate, 
+    session: SessionDep,
+    background_tasks: BackgroundTasks
 ) -> Employee:
     """
     Update an existing employee (partial update).
@@ -101,6 +121,7 @@ def update_employee(
         employee_id: The ID of the employee to update
         employee: Fields to update (only provided fields will be updated)
         session: Database session (injected)
+        background_tasks: Background tasks for async operations
 
     Returns:
         Updated employee data
@@ -121,17 +142,32 @@ def update_employee(
     session.commit()
     session.refresh(employee_db)
     logger.info(f"Employee with ID {employee_id} updated successfully")
+    
+    # Publish employee updated event (async, non-blocking)
+    background_tasks.add_task(
+        publish_employee_event,
+        "updated",
+        employee_db.id,
+        employee_db.name,
+        employee_db.age
+    )
+    
     return employee_db
 
 
 @router.delete("/{employee_id}")
-def delete_employee(employee_id: int, session: SessionDep) -> dict:
+async def delete_employee(
+    employee_id: int, 
+    session: SessionDep,
+    background_tasks: BackgroundTasks
+) -> dict:
     """
     Delete an employee.
 
     Args:
         employee_id: The ID of the employee to delete
         session: Database session (injected)
+        background_tasks: Background tasks for async operations
 
     Returns:
         Success confirmation
@@ -144,7 +180,22 @@ def delete_employee(employee_id: int, session: SessionDep) -> dict:
     if not employee:
         logger.warning(f"Employee with ID {employee_id} not found for deletion")
         raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Capture data before deletion for event
+    employee_name = employee.name
+    employee_age = employee.age
+    
     session.delete(employee)
     session.commit()
     logger.info(f"Employee with ID {employee_id} deleted successfully")
+    
+    # Publish employee deleted event (async, non-blocking)
+    background_tasks.add_task(
+        publish_employee_event,
+        "deleted",
+        employee_id,
+        employee_name,
+        employee_age
+    )
+    
     return {"ok": True}

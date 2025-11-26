@@ -146,6 +146,9 @@ class AuditServiceClient:
     ) -> bool:
         """
         Log an audit event.
+        
+        Tries Kafka first for async event publishing, falls back to HTTP if Kafka is unavailable.
+        This ensures backward compatibility and graceful degradation.
 
         Args:
             user_id: User performing the action
@@ -157,8 +160,47 @@ class AuditServiceClient:
             new_value: New value (for updates)
 
         Returns:
-            True if logged successfully, False otherwise
+            True if logged successfully (via Kafka or HTTP), False otherwise
         """
+        # Try Kafka first if enabled
+        if settings.KAFKA_ENABLE_PRODUCER:
+            try:
+                import sys
+                from pathlib import Path
+                sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+                
+                from shared.kafka import get_producer, create_audit_event, EventType
+                
+                producer = await get_producer(
+                    bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+                    client_id=settings.KAFKA_CLIENT_ID
+                )
+                
+                if producer and producer.is_started:
+                    event = create_audit_event(
+                        source_service=settings.APP_NAME,
+                        event_type=EventType.AUDIT_USER_ACTION,
+                        user_id=user_id,
+                        action=action,
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                        description=description,
+                        old_value=old_value,
+                        new_value=new_value
+                    )
+                    
+                    success = await producer.send_event(settings.KAFKA_AUDIT_TOPIC, event)
+                    if success:
+                        logger.info(f"Audit event sent via Kafka: {action} on {resource_type} {resource_id}")
+                        return True
+                    else:
+                        logger.warning("Failed to send audit event via Kafka, falling back to HTTP")
+            except Exception as e:
+                logger.warning(f"Error sending audit event via Kafka: {e}, falling back to HTTP")
+        else:
+            logger.debug("Kafka producer disabled (KAFKA_ENABLE_PRODUCER=False), using HTTP for audit logging")
+
+        # HTTP Fallback (maintains backward compatibility)
         url = f"{self.base_url}/api/v1/audit-logs"
 
         payload = {
@@ -177,12 +219,12 @@ class AuditServiceClient:
 
                 if response.status_code in [200, 201]:
                     logger.info(
-                        f"Audit logged: {action} on {resource_type} {resource_id}"
+                        f"Audit logged via HTTP: {action} on {resource_type} {resource_id}"
                     )
                     return True
                 else:
                     logger.warning(
-                        f"Failed to log audit: {response.status_code} - {response.text}"
+                        f"Failed to log audit via HTTP: {response.status_code} - {response.text}"
                     )
                     return False
 
@@ -190,6 +232,7 @@ class AuditServiceClient:
             logger.warning(f"Error calling Audit Service (non-blocking): {e}")
             # Don't fail the main operation if audit fails
             return False
+
 
 
 class ComplianceServiceClient:
@@ -283,19 +326,62 @@ class NotificationServiceClient:
         subject: str,
         template_name: str,
         template_data: Dict[str, Any],
+        event_type: Optional[Any] = None,
     ) -> bool:
         """
         Send email notification (fire-and-forget).
+        
+        Tries Kafka first for async event publishing, falls back to HTTP if Kafka is unavailable.
+        This ensures backward compatibility and graceful degradation.
 
         Args:
             to_email: Recipient email address
             subject: Email subject
             template_name: Template name
             template_data: Template variables
+            event_type: Optional Kafka EventType for async publishing
 
         Returns:
-            True if sent (best effort), False if immediate failure
+            True if sent (best effort via Kafka or HTTP), False if immediate failure
         """
+        # Try Kafka first if enabled and event_type is provided
+        if settings.KAFKA_ENABLE_PRODUCER and event_type:
+            try:
+                import sys
+                from pathlib import Path
+                sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+                
+                from shared.kafka import get_producer, create_notification_event
+                
+                producer = await get_producer(
+                    bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+                    client_id=settings.KAFKA_CLIENT_ID
+                )
+                
+                if producer and producer.is_started:
+                    event = create_notification_event(
+                        source_service=settings.APP_NAME,
+                        recipient_email=to_email,
+                        subject=subject,
+                        template_name=template_name,
+                        template_data=template_data,
+                        event_type=event_type
+                    )
+                    
+                    success = await producer.send_event(settings.KAFKA_NOTIFICATION_TOPIC, event)
+                    if success:
+                        logger.info(f"Notification event sent via Kafka: {template_name} to {to_email}")
+                        return True
+                    else:
+                        logger.warning("Failed to send notification via Kafka, falling back to HTTP")
+            except Exception as e:
+                logger.warning(f"Error sending notification via Kafka: {e}, falling back to HTTP")
+        elif not settings.KAFKA_ENABLE_PRODUCER:
+            logger.debug("Kafka producer disabled (KAFKA_ENABLE_PRODUCER=False), using HTTP for notifications")
+        elif not event_type:
+            logger.debug("No event_type provided, using HTTP for notification")
+
+        # HTTP Fallback (maintains backward compatibility)
         url = f"{self.base_url}/api/v1/notifications/email"
 
         payload = {
@@ -310,11 +396,11 @@ class NotificationServiceClient:
                 response = await client.post(url, json=payload)
 
                 if response.status_code in [200, 201, 202]:
-                    logger.info(f"Email sent to {to_email}")
+                    logger.info(f"Email sent via HTTP to {to_email}")
                     return True
                 else:
                     logger.warning(
-                        f"Failed to send email: {response.status_code} - {response.text}"
+                        f"Failed to send email via HTTP: {response.status_code} - {response.text}"
                     )
                     return False
 
@@ -322,6 +408,7 @@ class NotificationServiceClient:
             logger.warning(f"Error calling Notification Service: {e}")
             # Fire-and-forget, so don't fail
             return False
+
 
     async def send_account_created_notification(
         self, email: str, first_name: str, last_name: str
@@ -337,6 +424,17 @@ class NotificationServiceClient:
         Returns:
             True if sent, False if failed
         """
+        # Try to import EventType for Kafka, but don't fail if unavailable
+        event_type = None
+        try:
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+            from shared.kafka import EventType
+            event_type = EventType.USER_CREATED
+        except ImportError:
+            pass  # Kafka not available, will use HTTP
+        
         return await self.send_email(
             to_email=email,
             subject="Welcome to HRMS!",
@@ -346,6 +444,7 @@ class NotificationServiceClient:
                 "first_name": first_name,
                 "last_name": last_name,
             },
+            event_type=event_type,
         )
 
     async def send_password_changed_notification(
@@ -361,6 +460,17 @@ class NotificationServiceClient:
         Returns:
             True if sent, False if failed
         """
+        # Try to import EventType for Kafka
+        event_type = None
+        try:
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+            from shared.kafka import EventType
+            event_type = EventType.USER_PASSWORD_CHANGED
+        except ImportError:
+            pass
+        
         return await self.send_email(
             to_email=email,
             subject="Password Changed",
@@ -369,6 +479,7 @@ class NotificationServiceClient:
                 "first_name": first_name,
                 "email": email,
             },
+            event_type=event_type,
         )
 
     async def send_account_suspended_notification(
@@ -385,6 +496,17 @@ class NotificationServiceClient:
         Returns:
             True if sent, False if failed
         """
+        # Try to import EventType for Kafka
+        event_type = None
+        try:
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+            from shared.kafka import EventType
+            event_type = EventType.USER_SUSPENDED
+        except ImportError:
+            pass
+        
         return await self.send_email(
             to_email=email,
             subject="Account Suspended",
@@ -394,6 +516,7 @@ class NotificationServiceClient:
                 "email": email,
                 "reason": reason,
             },
+            event_type=event_type,
         )
 
     async def send_account_deleted_notification(
@@ -409,6 +532,17 @@ class NotificationServiceClient:
         Returns:
             True if sent, False if failed
         """
+        # Try to import EventType for Kafka
+        event_type = None
+        try:
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+            from shared.kafka import EventType
+            event_type = EventType.USER_DELETED
+        except ImportError:
+            pass
+        
         return await self.send_email(
             to_email=email,
             subject="Account Deleted",
@@ -417,6 +551,7 @@ class NotificationServiceClient:
                 "first_name": first_name,
                 "email": email,
             },
+            event_type=event_type,
         )
 
 

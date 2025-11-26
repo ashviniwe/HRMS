@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Kafka Settings (Optional - for async event publishing)
+    KAFKA_ENABLE_PRODUCER: bool = True  # Feature flag for Kafka producer
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    KAFKA_ATTENDANCE_TOPIC: str = "attendance-queue"
+    KAFKA_CLIENT_ID: str = "attendance-management-service"
+
+
     @property
     def database_url(self) -> str:
         """Generate MySQL database URL."""

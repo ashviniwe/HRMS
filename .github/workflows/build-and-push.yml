@@ -1,5 +1,9 @@
 name: Build and Push All Services to ECR
 
+permissions:
+  contents: read
+  pull-requests: read
+
 on:
   push:
     branches: [main]
@@ -45,7 +49,7 @@ jobs:
              --arg build_all "${{ github.event.inputs.build_all }}" \
              'if $build_all == "true" then to_entries | map(.value) else [ .[$changes[]] ] end' \
              .github/workflows/service-config.json > matrix.json
-             
+
           echo "matrix={\"include\": $(cat matrix.json)}" >> $GITHUB_OUTPUT
 
   build-and-push:

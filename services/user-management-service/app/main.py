@@ -45,6 +45,27 @@ async def lifespan(_: FastAPI):
         logger.error(f"❌ Failed to initialize database: {e}")
         raise
 
+    # Start Kafka producer (Optional - for async event publishing)
+    if settings.KAFKA_ENABLE_PRODUCER:
+        try:
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+            
+            from shared.kafka import get_producer
+            
+            logger.info("Initializing Kafka producer...")
+            await get_producer(
+                bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+                client_id=settings.KAFKA_CLIENT_ID
+            )
+            logger.info(f"✅ Kafka producer started (topics: {settings.KAFKA_NOTIFICATION_TOPIC}, {settings.KAFKA_AUDIT_TOPIC})")
+        except Exception as e:
+            logger.error(f"❌ Failed to start Kafka producer: {e}")
+            logger.warning("Continuing without Kafka producer - HTTP endpoints still available")
+    else:
+        logger.info("Kafka producer disabled (KAFKA_ENABLE_PRODUCER=False)")
+
     logger.info("=" * 80)
     logger.info("✅ Application startup complete")
     logger.info("=" * 80)
@@ -54,7 +75,18 @@ async def lifespan(_: FastAPI):
     # Shutdown
     logger.info("=" * 80)
     logger.info("🛑 Shutting down User Management Service")
+    
+    # Stop Kafka producer
+    if settings.KAFKA_ENABLE_PRODUCER:
+        try:
+            from shared.kafka import close_producer
+            await close_producer()
+            logger.info("✅ Kafka producer stopped")
+        except Exception as e:
+            logger.error(f"❌ Error stopping Kafka producer: {e}")
+    
     logger.info("=" * 80)
+
 
 
 # Initialize FastAPI application

@@ -5,7 +5,7 @@ Handles all operations for attendance records including check-in, check-out, and
 
 from typing import Annotated
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 
 from app.api.dependencies import SessionDep
 from app.api.clients.employee_service import employee_service
@@ -18,6 +18,7 @@ from app.models.attendance import (
     CheckOutRequest,
     MonthlySummary,
 )
+from app.services.attendance_events import publish_attendance_event
 from app.core.logging import get_logger
 from sqlmodel import select
 
@@ -32,7 +33,7 @@ router = APIRouter(
 
 
 @router.post("/check-in", response_model=AttendancePublic, status_code=201)
-async def check_in(request: CheckInRequest, session: SessionDep) -> Attendance:
+async def check_in(request: CheckInRequest, session: SessionDep, background_tasks: BackgroundTasks) -> Attendance:
     """
     Employee check-in endpoint.
     Records the check-in time for an employee on the current date.
@@ -78,6 +79,16 @@ async def check_in(request: CheckInRequest, session: SessionDep) -> Attendance:
         session.commit()
         session.refresh(existing_record)
         logger.info(f"Employee {request.employee_id} checked in at {check_in_time}")
+        # Publish attendance event (async)
+        background_tasks.add_task(
+            publish_attendance_event,
+            "logged",
+            existing_record.id,
+            existing_record.employee_id,
+            existing_record.date,
+            existing_record.status,
+            check_in_time=existing_record.check_in_time,
+        )
         return existing_record
     else:
         # Create new attendance record
@@ -94,11 +105,21 @@ async def check_in(request: CheckInRequest, session: SessionDep) -> Attendance:
         session.commit()
         session.refresh(new_record)
         logger.info(f"Employee {request.employee_id} checked in at {check_in_time}")
+        # Publish attendance event (async)
+        background_tasks.add_task(
+            publish_attendance_event,
+            "logged",
+            new_record.id,
+            new_record.employee_id,
+            new_record.date,
+            new_record.status,
+            check_in_time=new_record.check_in_time,
+        )
         return new_record
 
 
 @router.post("/check-out", response_model=AttendancePublic, status_code=200)
-async def check_out(request: CheckOutRequest, session: SessionDep) -> Attendance:
+async def check_out(request: CheckOutRequest, session: SessionDep, background_tasks: BackgroundTasks) -> Attendance:
     """
     Employee check-out endpoint.
     Records the check-out time for an employee on the current date.
@@ -151,12 +172,22 @@ async def check_out(request: CheckOutRequest, session: SessionDep) -> Attendance
     session.commit()
     session.refresh(record)
     logger.info(f"Employee {request.employee_id} checked out at {check_out_time}")
+    # Publish attendance event (async)
+    background_tasks.add_task(
+        publish_attendance_event,
+        "updated",
+        record.id,
+        record.employee_id,
+        record.date,
+        record.status,
+        check_out_time=record.check_out_time,
+    )
     return record
 
 
 @router.post("/manual", response_model=AttendancePublic, status_code=201)
 async def create_manual_attendance(
-    attendance: AttendanceCreate, session: SessionDep
+    attendance: AttendanceCreate, session: SessionDep, background_tasks: BackgroundTasks
 ) -> Attendance:
     """
     Create manual attendance entry.
@@ -203,6 +234,17 @@ async def create_manual_attendance(
     session.commit()
     session.refresh(db_attendance)
     logger.info(f"Manual attendance created successfully with ID: {db_attendance.id}")
+    # Publish attendance event (async)
+    background_tasks.add_task(
+        publish_attendance_event,
+        "logged",
+        db_attendance.id,
+        db_attendance.employee_id,
+        db_attendance.date,
+        db_attendance.status,
+        check_in_time=db_attendance.check_in_time,
+        check_out_time=db_attendance.check_out_time,
+    )
     return db_attendance
 
 
@@ -295,7 +337,7 @@ def get_employee_attendance(
 
 @router.put("/{attendance_id}", response_model=AttendancePublic)
 def update_attendance(
-    attendance_id: int, attendance: AttendanceUpdate, session: SessionDep
+    attendance_id: int, attendance: AttendanceUpdate, session: SessionDep, background_tasks: BackgroundTasks
 ) -> Attendance:
     """
     Update an existing attendance record.
@@ -351,6 +393,17 @@ def update_attendance(
     session.commit()
     session.refresh(record)
     logger.info(f"Attendance record with ID {attendance_id} updated successfully")
+    # Publish attendance event (async)
+    background_tasks.add_task(
+        publish_attendance_event,
+        "updated",
+        record.id,
+        record.employee_id,
+        record.date,
+        record.status,
+        check_in_time=record.check_in_time,
+        check_out_time=record.check_out_time,
+    )
     return record
 
 

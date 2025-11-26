@@ -1,0 +1,126 @@
+---
+# ServiceMonitor for Kafka metrics (requires Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kafka-metrics
+  namespace: kafka
+  labels:
+    app: hrms-kafka
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/cluster: hrms-kafka
+      strimzi.io/kind: Kafka
+      strimzi.io/name: hrms-kafka-kafka
+  endpoints:
+    - port: tcp-prometheus
+      interval: 30s
+      path: /metrics
+---
+# ServiceMonitor for ZooKeeper metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: zookeeper-metrics
+  namespace: kafka
+  labels:
+    app: hrms-kafka
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/cluster: hrms-kafka
+      strimzi.io/kind: Kafka
+      strimzi.io/name: hrms-kafka-zookeeper
+  endpoints:
+    - port: tcp-prometheus
+      interval: 30s
+      path: /metrics
+---
+# PrometheusRule for Kafka alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kafka-alerts
+  namespace: kafka
+  labels:
+    app: hrms-kafka
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: kafka
+      interval: 30s
+      rules:
+        # Critical Alerts
+        - alert: KafkaBrokerDown
+          expr: up{job="kafka-metrics"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kafka broker is down"
+            description: "Kafka broker {{ $labels.instance }} is down for more than 1 minute"
+        
+        - alert: KafkaConsumerLagHigh
+          expr: kafka_consumergroup_lag > 1000
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kafka consumer lag is high"
+            description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} messages on topic {{ $labels.topic }}"
+        
+        - alert: KafkaUnderReplicatedPartitions
+          expr: kafka_server_replicamanager_underreplicatedpartitions > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kafka has under-replicated partitions"
+            description: "Kafka broker {{ $labels.instance }} has {{ $value }} under-replicated partitions"
+        
+        - alert: KafkaOfflinePartitions
+          expr: kafka_controller_kafkacontroller_offlinepartitionscount > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Kafka has offline partitions"
+            description: "Kafka cluster has {{ $value }} offline partitions"
+        
+        # Warning Alerts
+        - alert: KafkaConsumerLagWarning
+          expr: kafka_consumergroup_lag > 500
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka consumer lag is increasing"
+            description: "Consumer group {{ $labels.consumergroup }} has lag of {{ $value }} messages on topic {{ $labels.topic }}"
+        
+        - alert: KafkaDiskUsageHigh
+          expr: (kubelet_volume_stats_used_bytes{persistentvolumeclaim=~"data-.*-hrms-kafka-kafka-.*"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"data-.*-hrms-kafka-kafka-.*"}) > 0.80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka disk usage is high"
+            description: "Kafka broker disk usage is above 80% on {{ $labels.persistentvolumeclaim }}"
+        
+        - alert: KafkaProducerErrorRate
+          expr: rate(kafka_producer_record_error_total[5m]) > 0.01
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kafka producer error rate is high"
+            description: "Producer error rate is {{ $value }} errors/sec"
+        
+        - alert: ZooKeeperDown
+          expr: up{job="zookeeper-metrics"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ZooKeeper is down"
+            description: "ZooKeeper instance {{ $labels.instance }} is down"
