@@ -26,9 +26,41 @@ on:
         required: true
 
 jobs:
-  build-service:
+  static-checks:
+    name: Static Security Checks
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Lint Dockerfile (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ inputs.servicePath }}/Dockerfile
+          failure-threshold: error
+
+      - name: Scan Dockerfile for best practices (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'config'
+          scan-ref: ${{ inputs.servicePath }}/Dockerfile
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+
+      - name: Scan for secrets (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: ${{ inputs.servicePath }}
+          scanners: 'secret'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+  build-and-push:
+    name: Build and Push Image
+    needs: static-checks
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,6 +100,20 @@ jobs:
           vuln-type: os,library
           severity: CRITICAL,HIGH
           trivyignores: services/.trivyignore
+
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'image'
+          format: 'cyclonedx'
+          output: 'sbom.json'
+          image-ref: ${{ inputs.imageName }}:${{ github.sha }}
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ inputs.imageName }}
+          path: sbom.json
 
       - name: Tag image for ECR
         if: inputs.push_image == true
