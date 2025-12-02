@@ -133,6 +133,7 @@ echo "✔ Deletion protection enabled."
 echo "➜ Enabling point-in-time recovery (PITR)..."
 aws dynamodb update-continuous-backups \
     --table-name "$DYNAMO_TABLE" \
+    --region "$AWS_REGION" \
     --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true
 echo "✔ PITR enabled (can restore to any second in the last 35 days)."
 
