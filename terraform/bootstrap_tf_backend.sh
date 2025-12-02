@@ -37,7 +37,7 @@ fi
 # ---------------------------------------------------------
 # CREATE S3 BUCKET (IDEMPOTENT)
 # ---------------------------------------------------------
-echo "[1/3] Checking S3 bucket '$BUCKET_NAME'..."
+echo "[1/5] Checking S3 bucket '$BUCKET_NAME'..."
 
 if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
     echo "✔ S3 bucket already exists."
@@ -76,7 +76,7 @@ fi
 # APPLY LIFECYCLE RULE (CLEAN OLD VERSIONS)
 # ---------------------------------------------------------
 echo ""
-echo "[2/3] Applying lifecycle rule..."
+echo "[2/5] Applying lifecycle rule..."
 # Cleans up non-current versions after 90 days to save costs
 # Warning: Non-current state versions will be deleted after 90 days.
 # Ensure you have a backup strategy for critical state files if required.
@@ -99,7 +99,7 @@ echo "✔ Lifecycle rule applied (90-day retention for old versions)."
 # CREATE DYNAMODB TABLE (IDEMPOTENT)
 # ---------------------------------------------------------
 echo ""
-echo "[3/3] Checking DynamoDB table '$DYNAMO_TABLE'..."
+echo "[3/5] Checking DynamoDB table '$DYNAMO_TABLE'..."
 
 if aws dynamodb describe-table --table-name "$DYNAMO_TABLE" >/dev/null 2>&1; then
     echo "✔ DynamoDB table already exists."
@@ -120,7 +120,7 @@ fi
 # ---------------------------------------------------------
 # ENABLE DELETION PROTECTION
 # ---------------------------------------------------------
-echo "➜ Enabling deletion protection..."
+echo "[4/5] Enabling deletion protection..."
 aws dynamodb update-table \
     --table-name "$DYNAMO_TABLE" \
     --region "$AWS_REGION" \
@@ -130,7 +130,7 @@ echo "✔ Deletion protection enabled."
 # ---------------------------------------------------------
 # ENABLE POINT-IN-TIME RECOVERY (PITR)
 # ---------------------------------------------------------
-echo "➜ Enabling point-in-time recovery (PITR)..."
+echo "[5/5] Enabling point-in-time recovery (PITR)..."
 aws dynamodb update-continuous-backups \
     --table-name "$DYNAMO_TABLE" \
     --region "$AWS_REGION" \
