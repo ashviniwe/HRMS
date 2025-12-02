@@ -59,3 +59,14 @@ yarn.lock
 
 # OS specific
 Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+terraform.tfvars
+override.tf
+override.tf.json
+crash.log
+*.tfvars.json
