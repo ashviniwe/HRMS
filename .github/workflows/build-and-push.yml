@@ -58,7 +58,7 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
 
-    uses: ./.github/workflows/reusable-build-push.yml
+    uses: PookieLand/workflows_hrms/.github/workflows/reusable-build-push.yml@v1.0.0
 
     with:
       servicePath: ${{ matrix.servicePath }}
