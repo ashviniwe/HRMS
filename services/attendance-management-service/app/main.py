@@ -121,5 +121,3 @@ async def detailed_health_check():
         "version": settings.APP_VERSION,
         "database": settings.DB_NAME,
     }
-
-
