@@ -104,10 +104,10 @@ resource "aws_security_group" "k8s_worker_sg" {
 
   # Allow Prometheus Security Group to access Node Exporter
   ingress {
-    from_port       = 9100
-    to_port         = 9100
-    protocol        = "tcp"
-    security_groups = [aws_security_group.monitoring_sg.id]
+    from_port   = 9100
+    to_port     = 9100
+    protocol    = "tcp"
+    cidr_blocks = ["13.201.7.62/32"]   # Prometheus public IP
   }
   
   # Allow all from master
