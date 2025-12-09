@@ -63,6 +63,27 @@ resource "aws_route_table_association" "hrms_public_rta" {
   route_table_id = aws_route_table.hrms_public_rt.id
 }
 
+# -----------------------------
+# Get Existing EIP for Master by Name Tag
+# -----------------------------
+data "aws_eip" "hrms_master_eip" {
+  filter {
+    name   = "tag:Name"
+    values = ["hrms_k8s_master_eip"]
+  }
+}
+
+# -----------------------------
+# Get Existing EIPs for Workers by Name Tag
+# -----------------------------
+data "aws_eip" "hrms_worker_eips" {
+  count = var.worker_count
+  filter {
+    name   = "tag:Name"
+    values = ["hrms_k8s_worker_${count.index + 1}_eip"]
+  }
+}
+
 # Master Node
 resource "aws_instance" "k8s_master" {
   ami           = var.ami_id
@@ -83,6 +104,14 @@ resource "aws_instance" "k8s_master" {
   }
 
   user_data = file("${path.module}/user_data.sh")
+}
+
+#-----------------------------
+# Attach eip to master ec2 
+#-----------------------------
+resource "aws_eip_association" "hrms_master_eip_attach" {
+    instance_id   = aws_instance.k8s_master.id
+    allocation_id = data.aws_eip.hrms_master_eip.id
 }
 
 # Worker Nodes
@@ -106,4 +135,13 @@ resource "aws_instance" "k8s_workers" {
   }
 
   user_data = file("${path.module}/user_data.sh")
+}
+
+#-----------------------------
+# Attach eips to worker ec2s 
+#-----------------------------
+resource "aws_eip_association" "hrms_worker_eip_attach" {
+  count = var.worker_count
+  instance_id   = aws_instance.k8s_workers[count.index].id
+  allocation_id = data.aws_eip.hrms_worker_eips[count.index].id
 }
