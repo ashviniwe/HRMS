@@ -6,7 +6,17 @@ apt-get update
 apt-get upgrade -y
 
 # Install basic tools
-apt-get install -y curl wget git vim apt-transport-https ca-certificates software-properties-common
+apt-get install -y curl wget git vim apt-transport-https ca-certificates software-properties-common unzip
+
+# Install AWS CLI v2
+cd /tmp
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+cd /
+
+# Verify AWS CLI installation
+aws --version
 
 # Disable swap
 swapoff -a

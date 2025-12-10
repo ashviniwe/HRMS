@@ -1,0 +1,82 @@
+---
+- name: Setup ECR Secret Refresh on Kubernetes Master
+  hosts: masters
+  become: yes
+  tasks:
+    - name: Create scripts directory
+      file:
+        path: /opt/k8s-scripts
+        state: directory
+        mode: '0755'
+
+    - name: Copy ECR refresh script
+      copy:
+        src: ../scripts/refresh-ecr-secrets.sh
+        dest: /opt/k8s-scripts/refresh-ecr-secrets.sh
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Create log directory for ECR refresh
+      file:
+        path: /var/log
+        state: directory
+        mode: '0755'
+
+    - name: Create ECR refresh log file
+      file:
+        path: /var/log/ecr-refresh.log
+        state: touch
+        mode: '0644'
+        owner: root
+        group: root
+
+    - name: Remove existing cron job if any
+      cron:
+        name: "Refresh ECR registry secrets"
+        state: absent
+        user: root
+
+    - name: Set up cron job to refresh ECR secrets every 6 hours
+      cron:
+        name: "Refresh ECR registry secrets"
+        minute: "0"
+        hour: "*/6"
+        job: "/opt/k8s-scripts/refresh-ecr-secrets.sh"
+        user: root
+        cron_file: ecr-refresh
+
+    - name: Ensure cron service is running
+      systemd:
+        name: cron
+        state: started
+        enabled: yes
+
+    - name: Run ECR refresh script once to test and initialize secrets
+      shell: /opt/k8s-scripts/refresh-ecr-secrets.sh
+      register: ecr_refresh_output
+      ignore_errors: yes
+
+    - name: Display ECR refresh output
+      debug:
+        msg: "{{ ecr_refresh_output.stdout }}"
+      when: ecr_refresh_output.stdout is defined
+
+    - name: Display ECR refresh errors if any
+      debug:
+        msg: "{{ ecr_refresh_output.stderr }}"
+      when: ecr_refresh_output.stderr is defined and ecr_refresh_output.stderr != ""
+
+    - name: Check cron job status
+      shell: crontab -l | grep "refresh-ecr-secrets"
+      register: cron_status
+      ignore_errors: yes
+
+    - name: Display cron job status
+      debug:
+        msg: "ECR refresh cron job: {{ cron_status.stdout }}"
+      when: cron_status.stdout is defined
+
+    - name: Display log file location
+      debug:
+        msg: "ECR refresh logs can be found at /var/log/ecr-refresh.log on the master node"

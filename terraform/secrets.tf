@@ -58,10 +58,30 @@ data "aws_iam_policy_document" "externalsecret_allow_secretsmanager" {
   }
 }
 
+# IAM policy allowing ECR token retrieval for the ECR refresh script
+data "aws_iam_policy_document" "ecr_token_access" {
+  statement {
+    sid    = "AllowECRTokenRetrieval"
+    effect = "Allow"
+
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+
+    resources = ["*"]
+  }
+}
+
 resource "aws_iam_policy" "externalsecret_read_policy" {
   name        = "hrms-externalsecret-read-policy"
   description = "Allows ExternalSecrets operator to read hrms/mysql secret"
   policy      = data.aws_iam_policy_document.externalsecret_allow_secretsmanager.json
+}
+
+resource "aws_iam_policy" "ecr_token_policy" {
+  name        = "hrms-ecr-token-policy"
+  description = "Allows EC2 instances to retrieve ECR authorization tokens"
+  policy      = data.aws_iam_policy_document.ecr_token_access.json
 }
 
 # IAM user for ExternalSecrets operator (if IRSA isn't available)
@@ -89,6 +109,11 @@ resource "aws_iam_role_policy_attachment" "attach_policy_to_role" {
   policy_arn = aws_iam_policy.externalsecret_read_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "attach_ecr_policy_to_role" {
+  role       = aws_iam_role.externalsecret_node_role.name
+  policy_arn = aws_iam_policy.ecr_token_policy.arn
+}
+
 resource "aws_iam_instance_profile" "externalsecret_profile" {
   name = "hrms-external-secrets-instance-profile"
   role = aws_iam_role.externalsecret_node_role.name
@@ -107,4 +132,9 @@ output "externalsecret_node_role_arn" {
 output "externalsecret_instance_profile_name" {
   description = "Instance profile name to attach to EC2 instances"
   value       = aws_iam_instance_profile.externalsecret_profile.name
+}
+
+output "ecr_token_policy_arn" {
+  description = "IAM policy ARN for ECR token access"
+  value       = aws_iam_policy.ecr_token_policy.arn
 }
