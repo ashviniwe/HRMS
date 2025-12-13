@@ -42,6 +42,33 @@ resource "aws_secretsmanager_secret_version" "hrms_mysql_version" {
   })
 }
 
+resource "aws_secretsmanager_secret" "opensearch" {
+  name        = "opensearch"
+  description = "Opensearch credentials used by HRMS "
+}
+
+# Generate a stronger password and allow overriding the username.
+variable "opensearch_user" {
+  description = "Opensearch username (can override)."
+  type        = string
+  default     = "opensearch_admin"
+}
+
+resource "random_password" "opensearch_password" {
+  length           = 24
+  override_special = "@#%&*-_+="
+}
+
+# Manage the current opensearch secret value in Terraform.
+resource "aws_secretsmanager_secret_version" "opensearch_version" {
+  secret_id     = aws_secretsmanager_secret.opensearch.id
+  secret_string = jsonencode({
+    username = var.opensearch_user,
+    password = random_password.opensearch_password.result,
+    host     = "http://65.0.177.75:9200",
+  })
+}
+
 # IAM policy allowing read-only access to the above secret (for ExternalSecrets operator)
 data "aws_iam_policy_document" "externalsecret_allow_secretsmanager" {
   statement {
@@ -54,7 +81,11 @@ data "aws_iam_policy_document" "externalsecret_allow_secretsmanager" {
       "secretsmanager:ListSecrets",
     ]
 
-    resources = [aws_secretsmanager_secret.hrms_mysql.arn]
+    # Allow access to hrms/mysql and the opensearch secret
+    resources = [
+      aws_secretsmanager_secret.hrms_mysql.arn,
+      aws_secretsmanager_secret.opensearch.arn,
+    ]
   }
 }
 
@@ -74,7 +105,7 @@ data "aws_iam_policy_document" "ecr_token_access" {
 
 resource "aws_iam_policy" "externalsecret_read_policy" {
   name        = "hrms-externalsecret-read-policy"
-  description = "Allows ExternalSecrets operator to read hrms/mysql secret"
+  description = "Allows ExternalSecrets operator to read hrms/mysql and opensearch secrets"
   policy      = data.aws_iam_policy_document.externalsecret_allow_secretsmanager.json
 }
 
