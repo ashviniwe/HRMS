@@ -1,111 +1,168 @@
+# ---
+# - name: Deploy HRMS Application to Kubernetes
+#   hosts: masters
+#   become_user: ubuntu
+#   vars:
+#     ansible_ssh_common_args: '-o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes'
+#   tasks:
+#     - name: Create k8s-manifests directory
+#       file:
+#         path: /home/ubuntu/k8s-manifests
+#         state: directory
+
+#     - name: Copy Kubernetes manifests
+#       synchronize:
+#         src: "{{ playbook_dir }}/../../k8s-manifests/"
+#         dest: /home/ubuntu/k8s-manifests/
+#         recursive: yes
+
+#     - name: Create hrms namespace
+#       shell: kubectl apply -f /home/ubuntu/k8s-manifests/namespace.yaml
+
+#     - name: Deploy MySQL ConfigMap
+#       shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/configmap.yaml
+#       ignore_errors: yes
+
+#     - name: Deploy MySQL StatefulSet
+#       shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/statefulset.yaml
+
+#     - name: Wait for MySQL pod to exist
+#       shell: kubectl get pod -l app=mysql -n hrms --no-headers | wc -l
+#       register: mysql_pod_exists
+#       until: mysql_pod_exists.stdout|int > 0
+#       retries: 12
+#       delay: 5
+
+#     - name: Wait for MySQL to be ready (60 second intervals)
+#       shell: kubectl wait --for=condition=ready pod -l app=mysql -n hrms --timeout=60s
+#       register: mysql_ready
+#       retries: 5
+#       delay: 10
+#       until: mysql_ready.rc == 0
+#       ignore_errors: yes
+
+#     - name: Check MySQL pod status
+#       shell: kubectl get pods -l app=mysql -n hrms
+#       register: mysql_status
+
+#     - name: Display MySQL status
+#       debug:
+#         var: mysql_status.stdout_lines
+
+#     - name: Deploy all backend services
+#       shell: kubectl apply -f /home/ubuntu/k8s-manifests/services/
+#       register: backend_deploy
+
+#     - name: Display backend deployment result
+#       debug:
+#         var: backend_deploy.stdout_lines
+
+#     - name: Wait a bit for backend pods to initialize
+#       pause:
+#         seconds: 30
+
+#     - name: Check backend services status
+#       shell: kubectl get pods -n hrms -l tier=backend
+#       register: backend_status
+
+#     - name: Display backend status
+#       debug:
+#         var: backend_status.stdout_lines
+
+#     - name: Deploy frontend
+#       shell: kubectl apply -f /home/ubuntu/k8s-manifests/frontend/
+
+#     - name: Wait for frontend pods
+#       pause:
+#         seconds: 20
+
+#     - name: Get all pods status
+#       shell: kubectl get pods -n hrms -o wide
+#       register: all_pods
+
+#     - name: Display all pods
+#       debug:
+#         var: all_pods.stdout_lines
+
+#     - name: Get all services
+#       shell: kubectl get svc -n hrms
+#       register: all_services
+
+#     - name: Display all services
+#       debug:
+#         var: all_services.stdout_lines
+
+#     - name: Check for any failing pods
+#       shell: kubectl get pods -n hrms --field-selector=status.phase!=Running,status.phase!=Succeeded
+#       register: failing_pods
+#       ignore_errors: yes
+
+#     - name: Display failing pods if any
+#       debug:
+#         var: failing_pods.stdout_lines
+#       when: failing_pods.stdout != ""
+
+#     - name: Final deployment summary
+#       debug:
+#         msg: |
+#           Deployment completed!
+#           Check pod status: kubectl get pods -n hrms
+#           Check services: kubectl get svc -n hrms
+#           View logs: kubectl logs -n hrms <pod-name>
+
 ---
-- name: Deploy HRMS Application to Kubernetes
+- name: Deploy HRMS Application via ArgoCD
   hosts: masters
   become_user: ubuntu
   vars:
     ansible_ssh_common_args: '-o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes'
   tasks:
-    - name: Create k8s-manifests directory
-      file:
-        path: /home/ubuntu/k8s-manifests
-        state: directory
-
-    - name: Copy Kubernetes manifests
-      synchronize:
-        src: "{{ playbook_dir }}/../../k8s-manifests/"
-        dest: /home/ubuntu/k8s-manifests/
-        recursive: yes
-
-    - name: Create hrms namespace
-      shell: kubectl apply -f /home/ubuntu/k8s-manifests/namespace.yaml
-
-    - name: Deploy MySQL ConfigMap
-      shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/configmap.yaml
+    - name: Create argo namespace
+      shell: kubectl create namespace argocd
       ignore_errors: yes
 
-    - name: Deploy MySQL StatefulSet
-      shell: kubectl apply -f /home/ubuntu/k8s-manifests/mysql/statefulset.yaml
+    - name: Install ArgoCD
+      shell: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-    - name: Wait for MySQL pod to exist
-      shell: kubectl get pod -l app=mysql -n hrms --no-headers | wc -l
-      register: mysql_pod_exists
-      until: mysql_pod_exists.stdout|int > 0
-      retries: 12
-      delay: 5
-
-    - name: Wait for MySQL to be ready (60 second intervals)
-      shell: kubectl wait --for=condition=ready pod -l app=mysql -n hrms --timeout=60s
-      register: mysql_ready
+    - name: Wait for ArgoCD server to be ready
+      shell: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
       retries: 5
       delay: 10
-      until: mysql_ready.rc == 0
       ignore_errors: yes
 
-    - name: Check MySQL pod status
-      shell: kubectl get pods -l app=mysql -n hrms
-      register: mysql_status
+    - name: Expose ArgoCD Server via NodePort
+      shell: kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
 
-    - name: Display MySQL status
+    - name: Get ArgoCD NodePort
+      shell: kubectl get svc argocd-server -n argocd -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}'
+      register: argocd_port
+
+    - name: Display ArgoCD URL
       debug:
-        var: mysql_status.stdout_lines
+        msg: "ArgoCD is available at: https://<NODE-IP>:{{ argocd_port.stdout }}"
 
-    - name: Deploy all backend services
-      shell: kubectl apply -f /home/ubuntu/k8s-manifests/services/
-      register: backend_deploy
+    - name: Apply AppProjects
+      shell: kubectl apply -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-project.yaml -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-staging-project.yaml -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-prod-project.yaml
 
-    - name: Display backend deployment result
-      debug:
-        var: backend_deploy.stdout_lines
+    - name: Apply Root App (Bootstrap)
+      shell: kubectl apply -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-root-app.yaml
 
-    - name: Wait a bit for backend pods to initialize
+    - name: Wait for Root App to sync
       pause:
         seconds: 30
 
-    - name: Check backend services status
-      shell: kubectl get pods -n hrms -l tier=backend
-      register: backend_status
+    - name: Check ArgoCD Applications
+      shell: kubectl get applications -n argocd
+      register: argo_apps
 
-    - name: Display backend status
+    - name: Display ArgoCD Applications
       debug:
-        var: backend_status.stdout_lines
-
-    - name: Deploy frontend
-      shell: kubectl apply -f /home/ubuntu/k8s-manifests/frontend/
-
-    - name: Wait for frontend pods
-      pause:
-        seconds: 20
-
-    - name: Get all pods status
-      shell: kubectl get pods -n hrms -o wide
-      register: all_pods
-
-    - name: Display all pods
-      debug:
-        var: all_pods.stdout_lines
-
-    - name: Get all services
-      shell: kubectl get svc -n hrms
-      register: all_services
-
-    - name: Display all services
-      debug:
-        var: all_services.stdout_lines
-
-    - name: Check for any failing pods
-      shell: kubectl get pods -n hrms --field-selector=status.phase!=Running,status.phase!=Succeeded
-      register: failing_pods
-      ignore_errors: yes
-
-    - name: Display failing pods if any
-      debug:
-        var: failing_pods.stdout_lines
-      when: failing_pods.stdout != ""
+        var: argo_apps.stdout_lines
 
     - name: Final deployment summary
       debug:
         msg: |
-          Deployment completed!
-          Check pod status: kubectl get pods -n hrms
-          Check services: kubectl get svc -n hrms
-          View logs: kubectl logs -n hrms <pod-name>
+          Deployment bootstrapped via ArgoCD!
+          Check apps: kubectl get applications -n argocd
+          Unlocking the power of GitOps. Make sure to commit changes to the repo to see them reflected.
+
