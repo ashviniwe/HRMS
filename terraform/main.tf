@@ -98,8 +98,9 @@ resource "aws_instance" "k8s_master" {
   vpc_security_group_ids = [aws_security_group.k8s_master_sg.id]
 
   root_block_device {
-    volume_size = 30
-    volume_type = "gp3"
+    volume_size           = 30
+    volume_type           = "gp3"
+    delete_on_termination = false
   }
 
   tags = {
@@ -131,8 +132,9 @@ resource "aws_instance" "k8s_workers" {
   vpc_security_group_ids = [aws_security_group.k8s_worker_sg.id]
 
   root_block_device {
-    volume_size = 50
-    volume_type = "gp3"
+    volume_size           = 50
+    volume_type           = "gp3"
+    delete_on_termination = false
   }
 
   tags = {
