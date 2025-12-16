@@ -124,6 +124,9 @@ data "aws_iam_policy_document" "externalsecret_allow_secretsmanager" {
     resources = [
       aws_secretsmanager_secret.hrms_mysql.arn,
       aws_secretsmanager_secret.opensearch.arn,
+      aws_secretsmanager_secret.asgardeo_user_service.arn,
+      aws_secretsmanager_secret.cors_user_service.arn,
+      aws_secretsmanager_secret.smtp_notification_service.arn,
     ]
   }
 }
