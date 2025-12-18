@@ -146,13 +146,13 @@ data "aws_iam_policy_document" "ecr_token_access" {
 }
 
 resource "aws_iam_policy" "externalsecret_read_policy" {
-  name        = "hrms-externalsecret-read-policy"
+  name        = "hrms-externalsecret-read-policy-sg"
   description = "Allows ExternalSecrets operator to read hrms/mysql and opensearch secrets"
   policy      = data.aws_iam_policy_document.externalsecret_allow_secretsmanager.json
 }
 
 resource "aws_iam_policy" "ecr_token_policy" {
-  name        = "hrms-ecr-token-policy"
+  name        = "hrms-ecr-token-policy-sg"
   description = "Allows EC2 instances to retrieve ECR authorization tokens"
   policy      = data.aws_iam_policy_document.ecr_token_access.json
 }
@@ -173,7 +173,7 @@ data "aws_iam_policy_document" "assume_role_for_ec2" {
 }
 
 resource "aws_iam_role" "externalsecret_node_role" {
-  name               = "hrms-external-secrets-node-role"
+  name               = "hrms-external-secrets-node-role-sg"
   assume_role_policy = data.aws_iam_policy_document.assume_role_for_ec2.json
 }
 
@@ -193,7 +193,7 @@ resource "aws_iam_role_policy_attachment" "attach_ecr_read_only_to_role" {
 }
 
 resource "aws_iam_instance_profile" "externalsecret_profile" {
-  name = "hrms-external-secrets-instance-profile"
+  name = "hrms-external-secrets-instance-profile-sg"
   role = aws_iam_role.externalsecret_node_role.name
 }
 
