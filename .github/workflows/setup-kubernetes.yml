@@ -85,7 +85,7 @@ jobs:
 
       - name: Configure ECR Access
         run: |
-          ansible-playbook -i inventory.ini ansible/playbooks/05-configure-ecr-access.yml \
+          ansible-playbook -i inventory.ini ansible/playbooks/05-setup-ecr-refresh.yml \
             -e "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" \
             -e "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}"
 
