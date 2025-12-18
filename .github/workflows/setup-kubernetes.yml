@@ -15,6 +15,7 @@ on:
 
 env:
   AWS_REGION: ap-southeast-1
+  ANSIBLE_HOST_KEY_CHECKING: False
 
 jobs:
   setup-cluster:
