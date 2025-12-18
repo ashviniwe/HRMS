@@ -75,9 +75,3 @@ variable "staging_nlb_name" {
   type        = string
   default     = "hrms-istio-nlb-staging"
 }
-
-variable "argocd_admin_password" {
-  description = "ArgoCD admin password"
-  type        = string
-  sensitive   = true
-}

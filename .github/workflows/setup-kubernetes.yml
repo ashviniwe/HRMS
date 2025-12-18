@@ -42,19 +42,6 @@ jobs:
         run: |
           pip install ansible boto3 botocore
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Init
-        run: terraform init
-        working-directory: ./terraform
-
-      - name: Terraform Apply
-        env:
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
-        run: terraform apply -auto-approve
-        working-directory: ./terraform
-
       - name: Setup SSH Key
         run: |
           mkdir -p ~/.ssh
