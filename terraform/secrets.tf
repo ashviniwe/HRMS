@@ -86,6 +86,19 @@ resource "aws_secretsmanager_secret" "opensearch" {
   description = "Opensearch credentials used by HRMS "
 }
 
+# ArgoCD admin password secret
+resource "aws_secretsmanager_secret" "argocd_admin" {
+  name        = "hrms/argocd/admin-sg"
+  description = "ArgoCD admin password for HRMS"
+}
+
+resource "aws_secretsmanager_secret_version" "argocd_admin_version" {
+  secret_id     = aws_secretsmanager_secret.argocd_admin.id
+  secret_string = jsonencode({
+    password = var.argocd_admin_password
+  })
+}
+
 # Generate a stronger password and allow overriding the username.
 variable "opensearch_user" {
   description = "Opensearch username (can override)."
@@ -127,6 +140,7 @@ data "aws_iam_policy_document" "externalsecret_allow_secretsmanager" {
       aws_secretsmanager_secret.asgardeo_user_service.arn,
       aws_secretsmanager_secret.cors_user_service.arn,
       aws_secretsmanager_secret.smtp_notification_service.arn,
+      aws_secretsmanager_secret.argocd_admin.arn,
     ]
   }
 }

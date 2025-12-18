@@ -121,6 +121,12 @@
       shell: kubectl create namespace argocd
       ignore_errors: yes
 
+    - name: Install python3-bcrypt for password hashing
+      apt:
+        name: python3-bcrypt
+        state: present
+      become: yes
+
     - name: Install ArgoCD
       shell: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
@@ -140,6 +146,24 @@
     - name: Display ArgoCD URL
       debug:
         msg: "ArgoCD is available at: https://<NODE-IP>:{{ argocd_port.stdout }}"
+
+    - name: Get ArgoCD Admin Password from AWS Secrets Manager
+      shell: |
+        aws secretsmanager get-secret-value --secret-id hrms/argocd/admin-sg --region {{ lookup('env', 'AWS_REGION') | default('ap-southeast-1', true) }} --query SecretString --output text | jq -r .password
+      register: argo_pass_raw
+
+    - name: Generate bcrypt hash for ArgoCD password
+      shell: |
+        python3 -c 'import bcrypt; print(bcrypt.hashpw("{{ argo_pass_raw.stdout }}".encode("utf-8"), bcrypt.gensalt(log_rounds=10)).decode("utf-8"))'
+      register: argo_pass_hash
+
+    - name: Update ArgoCD Admin Password in argocd-secret
+      shell: |
+        kubectl patch secret argocd-secret -n argocd -p '{"data": {"admin.password": "'$(echo -n "{{ argo_pass_hash.stdout }}" | base64 -w 0)'", "admin.passwordMtime": "'$(date +%FT%T%Z | base64 -w 0)'"}}'
+
+    - name: Remove ArgoCD initial admin secret
+      shell: kubectl delete secret argocd-initial-admin-secret -n argocd
+      ignore_errors: yes
 
     - name: Apply AppProjects
       shell: kubectl apply -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-project.yaml -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-staging-project.yaml -f https://raw.githubusercontent.com/PookieLand/gitops-manifests/main/argo/templates/hrms-prod-project.yaml
