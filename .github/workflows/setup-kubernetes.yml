@@ -46,9 +46,6 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.MASTER_IP }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.WORKER1_IP }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.WORKER2_IP }} >> ~/.ssh/known_hosts
 
       - name: Create Ansible Inventory
         run: |
@@ -113,7 +110,6 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.MASTER_IP }} >> ~/.ssh/known_hosts
 
       - name: Create Ansible Inventory
         run: |
@@ -143,11 +139,10 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.MASTER_IP }} >> ~/.ssh/known_hosts
 
       - name: Restart All Deployments
         run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.MASTER_IP }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ubuntu@${{ secrets.MASTER_IP }} << 'EOF'
             kubectl rollout restart deployment -n hrms
             kubectl rollout status deployment -n hrms --timeout=5m
           EOF
