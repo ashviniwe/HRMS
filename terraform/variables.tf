@@ -54,7 +54,7 @@ variable "http_nodeports" {
 variable "enable_nlb" {
   description = "Whether to provision a Network Load Balancer targeting worker node NodePorts"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "nlb_name" {
