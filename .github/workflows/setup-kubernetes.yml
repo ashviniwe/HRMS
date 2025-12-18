@@ -14,7 +14,7 @@ on:
           - destroy-cluster
 
 env:
-  AWS_REGION: ap-south-1
+  AWS_REGION: ap-southeast-1
 
 jobs:
   setup-cluster:
