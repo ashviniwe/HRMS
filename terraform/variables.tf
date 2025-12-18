@@ -1,11 +1,11 @@
 variable "aws_region" {
   description = "AWS region"
-  default     = "ap-south-1"
+  default     = "ap-southeast-1"
 }
 
 variable "ami_id" {
   description = "Ubuntu 22.04 LTS AMI"
-  default     = "ami-087d1c9a513324697" # Update for your region
+  default     = "ami-00d8fc944fb171e29" # Update for your region
 }
 
 variable "master_instance_type" {

@@ -9,9 +9,9 @@ set -euo pipefail
 # Examples:
 #  AWS_REGION=us-east-1 TERRAFORM_BUCKET_NAME=hrms-tf-backend-staging \
 #    TERRAFORM_DYNAMO_TABLE=hrms-tf-locks ./bootstrap_tf_backend.sh
-AWS_REGION="${AWS_REGION:-ap-south-1}"
-BUCKET_NAME="${TERRAFORM_BUCKET_NAME:-hrms-terraform-backend-prod}"
-DYNAMO_TABLE="${TERRAFORM_DYNAMO_TABLE:-hrms-terraform-locks}"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
+BUCKET_NAME="${TERRAFORM_BUCKET_NAME:-hrms-terraform-backend-singapore-prod}"
+DYNAMO_TABLE="${TERRAFORM_DYNAMO_TABLE:-hrms-terraform-locks-sg}"
 
 echo ""
 echo "============================================"

@@ -187,6 +187,11 @@ resource "aws_iam_role_policy_attachment" "attach_ecr_policy_to_role" {
   policy_arn = aws_iam_policy.ecr_token_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "attach_ecr_read_only_to_role" {
+  role       = aws_iam_role.externalsecret_node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
 resource "aws_iam_instance_profile" "externalsecret_profile" {
   name = "hrms-external-secrets-instance-profile"
   role = aws_iam_role.externalsecret_node_role.name

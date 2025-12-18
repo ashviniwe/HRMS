@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-REGION="ap-south-1"
+REGION="ap-southeast-1"
 ACCOUNT="475936984863"
 ECR_SERVER="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
 NAMESPACES=("staging" "production") # List all namespaces here
