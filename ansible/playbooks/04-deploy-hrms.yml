@@ -131,7 +131,7 @@
       ignore_errors: yes
 
     - name: Expose ArgoCD Server via NodePort
-      shell: kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
+      shell: "kubectl patch svc argocd-server -n argocd -p '{\"spec\": {\"type\": \"NodePort\"}}' "
 
     - name: Get ArgoCD NodePort
       shell: kubectl get svc argocd-server -n argocd -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}'
