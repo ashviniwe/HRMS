@@ -22,8 +22,13 @@ if [ -z "$PASSWORD" ]; then
 fi
 
 # 2. Loop through namespaces to refresh the secret
+export KUBECONFIG=/etc/kubernetes/admin.conf
+
 for NS in "${NAMESPACES[@]}"; do
     echo "$(date): Refreshing secret in namespace: $NS" >> $LOG_FILE
+
+    # Ensure the namespace exists before creating secret
+    kubectl create namespace $NS --dry-run=client -o yaml | kubectl apply -f - >> $LOG_FILE 2>&1
 
     # Delete existing secret (ignore if it doesn't exist)
     kubectl delete secret $SECRET_NAME -n $NS --ignore-not-found >> $LOG_FILE 2>&1

@@ -68,7 +68,7 @@
       when: ecr_refresh_output.stderr is defined and ecr_refresh_output.stderr != ""
 
     - name: Check cron job status
-      shell: crontab -l | grep "refresh-ecr-secrets"
+      shell: ls -l /etc/cron.d/ecr-refresh
       register: cron_status
       ignore_errors: yes
 
