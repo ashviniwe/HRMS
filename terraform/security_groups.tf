@@ -161,3 +161,27 @@ resource "aws_security_group" "k8s_worker_sg" {
     Name = "hrms-k8s-worker-sg"
   }
 }
+
+# Explicitly allow HTTP/HTTPS NodePorts on workers from configured sources
+resource "aws_security_group_rule" "worker_http_nodeports" {
+  # for_each must be a map or a set of strings; cast numbers to strings
+  for_each          = toset([for p in var.http_nodeports : tostring(p)])
+  type              = "ingress"
+  from_port         = tonumber(each.value)
+  to_port           = tonumber(each.value)
+  protocol          = "tcp"
+  security_group_id = aws_security_group.k8s_worker_sg.id
+  cidr_blocks       = var.allowed_http_nodeports_cidrs
+  description       = "Allow HTTP/S NodePort ${each.value} from allowed CIDRs"
+}
+
+# Allow Istio ingress gateway health checks (port 15021) on workers
+resource "aws_security_group_rule" "worker_istio_health" {
+  type              = "ingress"
+  from_port         = 15021
+  to_port           = 15021
+  protocol          = "tcp"
+  security_group_id = aws_security_group.k8s_worker_sg.id
+  cidr_blocks       = var.allowed_istio_health_cidrs
+  description       = "Allow Istio health check port 15021 from allowed CIDRs"
+}
